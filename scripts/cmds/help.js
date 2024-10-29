@@ -51,7 +51,7 @@ module.exports = {
 
           const names = categories[category].commands.sort();
           for (let i = 0; i < names.length; i += 3) {
-            const cmds = names.slice(i, i + 3).map((item) => `🔹 ${item}`);
+            const cmds = names.slice(i, i + 3).map((item) => `💸 ${item}`);
             msg += `\n│ ${cmds.join(" ".repeat(Math.max(1, 15 - cmds.join("").length)))}`;
           }
 
@@ -65,7 +65,7 @@ module.exports = {
       msg += `\n🛠 Created by: 🐐 | ITACHI SENSEI 👾🪽`; // Personal signature
 
       const helpListImages = [
-        "https://i.ibb.co/dWL159T/image.jpg"
+        "https://i.ibb.co/6ZtnN6Q/image.gif"
       ];
 
       const helpListImage = helpListImages[Math.floor(Math.random() * helpListImages.length)];
@@ -79,7 +79,7 @@ module.exports = {
       const command = commands.get(commandName) || commands.get(aliases.get(commandName));
 
       if (!command) {
-        await message.reply(`⚠️ Command "${commandName}" not found.`);
+        await message.reply(`⚠ Command "${commandName}" not found.`);
       } else {
         const configCommand = command.config;
         const roleText = roleTextToString(configCommand.role);
@@ -93,10 +93,10 @@ module.exports = {
 │ 📝 Name: ${configCommand.name}
 │ 🔍 Description: ${longDescription}
 │ 💡 Aliases: ${configCommand.aliases ? configCommand.aliases.join(", ") : "None"}
-│ ⚙️ Version: ${configCommand.version || "1.0"}
-│ 🛡️ Role Required: ${roleText}
+│ ⚙ Version: ${configCommand.version || "1.0"}
+│ 🛡 Role Required: ${roleText}
 │ ⏳ Cooldown: ${configCommand.countDown || 1}s
-│ ✒️ Author: ${author}
+│ ✒ Author: ${author}
 ╰───────────────────⭓
 
 📚 **Usage**:
