@@ -1,3 +1,4 @@
+
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const fs = require('fs');
  
@@ -159,4 +160,4 @@ you can reply to any image to add that in the fakechat.`
       message.reply("Error 😪");
     }
   },
-}
+    }

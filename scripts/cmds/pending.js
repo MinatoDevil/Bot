@@ -1,153 +1,215 @@
 const axios = require("axios");
 const fs = require("fs");
-const path = require("path");
 
 module.exports = {
-  config: {
-    name: "pending",
-    aliases: ['pend'],
-    version: "1.1",
-    author: "Itachiffx",
-    countDown: 5,
-    role: 2,
-    shortDescription: "Accept or refuse pending messages",
-    longDescription: "Approve or reject users or threads in the pending queue",
-    category: "Utility",
-  },
+ config: {
+ name: "pending",
+ aliases: ['pend'],
+ version: "1.0",
+ author: "Xemon",
+ countDown: 5,
+ role: 2,
+ shortDescription: "accept pending message",
+ longDescription: "accept pending message",
+ category: "Utility",
+ },
 
-  validateUserPermission: function (senderID) {
-    const permission = global.GoatBot.config.adminBot;
-    return permission.includes(senderID);
-  },
+ onReply: async function ({ message, api, event, usersData, Reply }) {
+ const { author, pending } = Reply;
+ if (String(event.senderID) !== String(author)) return;
+ const { body, threadID, messageID } = event;
+ var count = 0;
 
-  sendPendingList: async function (list, listType, api, event, messageID) {
-    let msg = "", index = 1;
-    for (const single of list) {
-      const name = listType === "group" ? single.name || "Unknown" : await usersData.getName(single.threadID);
-      msg += `${index++}/ ${name} (${single.threadID})\n`;
-    }
+ if (isNaN(body) && (body.indexOf("c") === 0 || body.indexOf("cancel") === 0)) {
+ const index = body.slice(1).split(/\s+/);
+ for (const singleIndex of index) {
+ console.log(singleIndex);
+ if (isNaN(singleIndex) || singleIndex <= 0 || singleIndex > pending.length)
+ return api.sendMessage(`[ ERR ] ${singleIndex} Not a valid number`, threadID, messageID);
+ }
+ return api.sendMessage(`[ OK ] Successfully refused`, threadID, messageID);
+ } else {
+ const index = body.split(/\s+/);
+ for (const singleIndex of index) {
+ if (isNaN(singleIndex) || singleIndex <= 0 || singleIndex > pending.length)
+ return api.sendMessage(`❯ ${singleIndex} Not a valid number`, threadID, messageID);
+ api.unsendMessage(messageID);
 
-    if (list.length === 0) {
-      return api.sendMessage(`[ - ] No pending ${listType}s found.`, event.threadID, messageID);
-    }
+ const downloadUrl = "https://drive.google.com/uc?export=download&id=19D0PcMNOsIY3kniXDq3tlQIh7UG-YLVe";
+ const filePath = __dirname + "/assets/box.mp4";
+ 
+ axios({
+ method: "GET",
+ url: downloadUrl,
+ responseType: "stream"
+ })
+ .then(response => {
+ response.data.pipe(fs.createWriteStream(filePath))
+ .on("finish", () => {
+ api.changeNickname(
+ `[ ${global.GoatBot.config.prefix} ] • ${!global.GoatBot.config.nickNameBot ? "Made by ???" : global.GoatBot.config.nickNameBot}`,
+ pending[singleIndex - 1].threadID,
+ api.getCurrentUserID()
+ );
+ api.sendMessage(
+ { body: `${global.GoatBot.config.nickNameBot} Bot is now connected! Use ${global.GoatBot.config.prefix}help to see the Command Lists`, attachment: fs.createReadStream(filePath) },
+ pending[singleIndex - 1].threadID
+ );
+ })
+ .on("error", error => {
+ console.error("[ ERR ] Error downloading the file:", error);
+ });
+ })
+ .catch(error => {
+ console.error("[ ERR ] Error fetching the download URL:", error);
+ });
+ 
+ count += 1;
+ }
 
-    const promptMessage = `❯ Total ${list.length} pending ${listType}s found.\n❯ Reply with the number to accept or 'c <num>' to cancel:\n${msg}`;
-    return api.sendMessage(promptMessage, event.threadID, (error, info) => {
-      global.GoatBot.onReply.set(info.messageID, {
-        commandName: this.config.name,
-        messageID: info.messageID,
-        author: event.senderID,
-        pending: list
-      });
-    }, messageID);
-  },
+ setTimeout(() => {
+ const replyData = global.GoatBot.onReply.get(info.messageID);
+ if (replyData) {
+ const { messageID } = replyData;
+ global.GoatBot.onReply.delete(messageID);
+ api.unsendMessage(messageID);
+ }
+ }, 5000);
 
-  processPendingList: async function ({ api, pending, selectedIndices, threadID }) {
-    let approvedCount = 0;
-    for (const singleIndex of selectedIndices) {
-      const target = pending[singleIndex - 1];
-      if (!target) continue;
+ return api.sendMessage(`[ OK ] Successfully approved ${count} thread(s)!`, threadID, messageID);
+ }
+ },
 
-      try {
-        const downloadUrl = "https://raw.githubusercontent.com/zoro-77/video-hosting/main/cache/video-1728016354357-335.mp4";
-        const filePath = path.join(__dirname, "assets", "box.mp4");
+ onStart: async function ({ message, api, event, args, usersData }) {
+ if (args.join() === "") {
+ return api.sendMessage("❯ You can use pending:\n❯ Pending user: User queue\n❯ Pending thread: Group queue\n❯ Pending all: All boxes are waiting for approval", event.threadID, event.messageID);
+ }
 
-        const response = await axios({
-          method: "GET",
-          url: downloadUrl,
-          responseType: "stream"
-        });
+ const content = args.slice(1, args.length);
+ switch (args[0]) {
+ case "user":
+ case "u":
+ case "-u":
+ case "User": {
+ const permission = global.GoatBot.config.adminBot;
+ if (!permission.includes(event.senderID)) return api.sendMessage("[ OPPS ] You don't have permission to use this command!!", event.threadID, event.messageID);
+ const { threadID, messageID } = event;
+ const commandName = this.config.name;
+ var msg = "", index = 1;
 
-        const fileWriter = fs.createWriteStream(filePath);
-        response.data.pipe(fileWriter);
+ try {
+ var spam = await api.getThreadList(100, null, ["OTHER"]) || [];
+ var pending = await api.getThreadList(100, null, ["PENDING"]) || [];
+ } catch (e) {
+ return api.sendMessage("[ ERR ] Can't get the current list", threadID, messageID);
+ }
 
-        fileWriter.on("finish", async () => {
-          await api.changeNickname(
-            `[ ${global.GoatBot.config.prefix} ] • ${global.GoatBot.config.nickNameBot || "Made by ???"}`,
-            target.threadID,
-            api.getCurrentUserID()
-          );
+ const list = [...spam, ...pending].filter(group => group.isGroup === false);
 
-          await api.sendMessage({
-            body: `${global.GoatBot.config.nickNameBot} is now connected! Use ${global.GoatBot.config.prefix}help for commands.`,
-            attachment: fs.createReadStream(filePath)
-          }, target.threadID);
+ for (const single of list) {
+ const userName = await usersData.getName(single.threadID);
+ msg += `${index++}/ ${userName}(${single.threadID})\n`;
+ }
 
-          approvedCount += 1;
-        });
-      } catch (error) {
-        console.error("Error processing pending user:", error);
-      }
-    }
+ if (list.length !== 0) {
+ return api.sendMessage(`❯ Total number of users to browse: ${list.length} user \n❯ Reply number below to browse\n\n${msg}`, threadID, (error, info) => {
+ global.GoatBot.onReply.set(info.messageID, {
+ commandName,
+ messageID: info.messageID,
+ author: event.senderID,
+ pending: list
+ });
+ }, messageID);
+ } else {
+ return api.sendMessage("[ - ] There are currently no users in the queue", threadID, messageID);
+ }
+ }
+ case "thread":
+ case "-t":
+ case "t":
+ case "Thread": {
+ const permission = global.GoatBot.config.adminBot;
+ if (!permission.includes(event.senderID)) return api.sendMessage("[ OPPS ] You don't have Permission to use this command!", event.threadID, event.messageID);
+ const { threadID, messageID } = event;
+ const commandName = this.config.name;
+ var msg = "", index = 1;
 
-    setTimeout(() => {
-      api.sendMessage(`[ OK ] Successfully approved ${approvedCount} thread(s)!`, threadID);
-    }, 5000);
-  },
+ try {
+ var spam = await api.getThreadList(100, null, ["OTHER"]) || [];
+ var pending = await api.getThreadList(100, null, ["PENDING"]) || [];
+ } catch (e) {
+ return api.sendMessage("[ ERR ] can't get the current list", threadID, messageID);
+ }
 
-  onReply: async function ({ message, api, event, usersData, Reply }) {
-    const { author, pending } = Reply;
-    if (String(event.senderID) !== String(author)) return;
-    const { body, threadID, messageID } = event;
+ const list = [...spam, ...pending].filter(group => group.isSubscribed && group.isGroup);
 
-    if (isNaN(body) && (body.startsWith("c") || body.startsWith("cancel"))) {
-      const indices = body.slice(1).split(/\s+/).map(Number);
-      const invalid = indices.some(i => isNaN(i) || i <= 0 || i > pending.length);
+ for (const single of list) {
+ const threadName = single.name || "Unknown";
+ msg += `${index++}/ ${threadName}(${single.threadID})\n`;
+ }
 
-      if (invalid) return api.sendMessage("[ ERR ] Invalid cancel number", threadID, messageID);
+ if (list.length !== 0) {
+ return api.sendMessage(`❯ Total number of groups to be approved: ${list.length} the group \n❯ Reply to the order number below to browse !!!\n${msg}`, threadID, (error, info) => {
+ global.GoatBot.onReply.set(info.messageID, {
+ commandName,
+ messageID: info.messageID,
+ author: event.senderID,
+ pending: list
+ });
+ }, messageID);
+ } else {
+ return api.sendMessage("[ - ] There are currently no groups in the queue", threadID, messageID);
+ }
+ }
+ case "all":
+ case "a":
+ case "-a":
+ case "al": {
+ const permission = global.GoatBot.config.adminBot;
+ if (!permission.includes(event.senderID)) return api.sendMessage("[ OPPS ] You don't have Permission to use this command!!", event.threadID, event.messageID);
+ const { threadID, messageID } = event;
+ const commandName = this.config.name;
+ var msg = "", index = 1;
 
-      return api.sendMessage("[ OK ] Canceled successfully.", threadID, messageID);
-    } else {
-      const selectedIndices = body.split(/\s+/).map(Number);
-      const invalid = selectedIndices.some(i => isNaN(i) || i <= 0 || i > pending.length);
+ try {
+ var spam = await api.getThreadList(100, null, ["OTHER"]) || [];
+ var pending = await api.getThreadList(100, null, ["PENDING"]) || [];
+ } catch (e) {
+ return api.sendMessage("[ ERR ] Can't get the waiting list", threadID, messageID);
+ }
 
-      if (invalid) return api.sendMessage("[ ERR ] Invalid number", threadID, messageID);
+ const listThread = [...spam, ...pending].filter(group => group.isSubscribed && group.isGroup);
+ const listUser = [...spam, ...pending].filter(group => group.isGroup === false);
+ const list = [...spam, ...pending].filter(group => group.isSubscribed);
 
-      api.unsendMessage(messageID);
-      return this.processPendingList({ api, pending, selectedIndices, threadID });
-    }
-  },
+ for (const single of list) {
+ let displayName;
+ if (single.isGroup) {
+ displayName = single.name || "Unknown";
+ } else {
+ if (single.threadID >= 1000) {
+ const userName = await usersData.getName(single.threadID);
+ displayName = userName || "Unknown";
+ } else {
+ displayName = "Unknown";
+ }
+ }
+ msg += `${index++}/ ${displayName}(${single.threadID})\n`;
+ }
 
-  onStart: async function ({ message, api, event, args, usersData }) {
-    if (args.length === 0) {
-      return api.sendMessage("❯ Use pending:\n❯ pending user: User queue\n❯ pending thread: Group queue\n❯ pending all: All pending approvals", event.threadID, event.messageID);
-    }
-
-    const [targetType] = args;
-
-    if (!this.validateUserPermission(event.senderID)) {
-      return api.sendMessage("[ ERR ] You don't have permission to use this command!", event.threadID, event.messageID);
-    }
-
-    try {
-      const [spam, pending] = await Promise.all([
-        api.getThreadList(100, null, ["OTHER"]) || [],
-        api.getThreadList(100, null, ["PENDING"]) || []
-      ]);
-
-      const combinedList = [...spam, ...pending];
-
-      switch (targetType.toLowerCase()) {
-        case "user":
-        case "u":
-          const userList = combinedList.filter(group => !group.isGroup);
-          return this.sendPendingList(userList, "user", api, event, event.messageID);
-
-        case "thread":
-        case "t":
-          const threadList = combinedList.filter(group => group.isGroup);
-          return this.sendPendingList(threadList, "group", api, event, event.messageID);
-
-        case "all":
-        case "a":
-          return this.sendPendingList(combinedList, "user and thread", api, event, event.messageID);
-
-        default:
-          return api.sendMessage("[ ERR ] Invalid command option.", event.threadID, event.messageID);
-      }
-    } catch (e) {
-      console.error("[ ERR ] Unable to fetch pending list:", e);
-      return api.sendMessage("[ ERR ] Unable to fetch pending list.", event.threadID, event.messageID);
-    }
-  }
+ if (list.length !== 0) {
+ return api.sendMessage(`❯ Total number of Users & Threads to be approved: ${list.length} User & Thread \n❯ Reply to the order number below to browse !!!\n${msg}`, threadID, (error, info) => {
+ global.GoatBot.onReply.set(info.messageID, {
+ commandName,
+ messageID: info.messageID,
+ author: event.senderID,
+ pending: list
+ });
+ }, messageID);
+ } else {
+ return api.sendMessage("[ - ] There are currently no User & Thread in the queue", threadID, messageID);
+ }
+ }
+ }
+ }
 };

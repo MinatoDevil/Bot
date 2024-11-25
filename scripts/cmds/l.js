@@ -269,4 +269,4 @@ function clearChatHistory(uid) {
     } catch (err) {
         console.error("Error deleting chat history file:", err);
     }
-                              }
+            }

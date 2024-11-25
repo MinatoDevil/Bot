@@ -3,55 +3,66 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-  config: {
-    name: "bin",
-    version: "1.1",
-    author: "SANDIP",
-    countDown: 5,
-    role: 0,
-    shortDescription: {
-      en: "Upload files to Pastebin and send link"
-    },
-    longDescription: {
-      en: "Uploads files to Pastebin and provides a link to access the file."
-    },
-    category: "owner",
-    guide: {
-      en: "Use {p}bin <filename> to upload a file to Pastebin. The file must be located in the 'cmds' folder."
-    }
-  },
+ config: {
+ name: "bin",
+ version: "1.0",
+ author: "Morgan",
+ countDown: 5,
+ role: 2,
+ shortDescription: {
+ en: "Upload files to pastebin and sends link"
+ },
+ longDescription: {
+ en: "This command allows you to upload files to pastebin and sends the link to the file."
+ },
+ category: "Utility",
+ guide: {
+ en: "To use this command, type !pastebin <filename>. The file must be located in the 'cmds' folder."
+ }
+ },
 
-  onStart: async function ({ api, event, args }) {
-    const pastebin = new PastebinAPI({
-      api_dev_key: 'LFhKGk5aRuRBII5zKZbbEpQjZzboWDp9'
-    });
+ onStart: async function({ api, event, args }) {
+ const permission = ["100088286122703","100087975355210"];
+ if (!permission.includes(event.senderID)) {
+ return api.sendMessage(
+ "Only owner can use this command",
+ event.threadID,
+ event.messageID
+ );
+ }
 
-    if (!args[0]) {
-      return api.sendMessage("❌ Please specify a file name.", event.threadID);
-    }
+ const pastebin = new PastebinAPI({
+ api_dev_key: 'LFhKGk5aRuRBII5zKZbbEpQjZzboWDp9',
+ api_user_key: 'LFhKGk5aRuRBII5zKZbbEpQjZzboWDp9',
+ });
 
-    const fileName = args[0];
-    const filePath = path.join(__dirname, '..', 'cmds', `${fileName}.js`);
+ const fileName = args[0];
+ const filePathWithoutExtension = path.join(__dirname, '..', 'cmds', fileName);
+ const filePathWithExtension = path.join(__dirname, '..', 'cmds', fileName + '.js');
 
-    if (!fs.existsSync(filePath)) {
-      return api.sendMessage("❌ File not found! Ensure the file exists in the 'cmds' folder.", event.threadID);
-    }
+ if (!fs.existsSync(filePathWithoutExtension) && !fs.existsSync(filePathWithExtension)) {
+ return api.sendMessage('File not found!', event.threadID);
+ }
 
-    try {
-      const data = fs.readFileSync(filePath, 'utf8');
-      const paste = await pastebin.createPaste({
-        text: data,
-        title: fileName,
-        format: null,
-        privacy: 1, // Private paste
-      });
+ const filePath = fs.existsSync(filePathWithoutExtension) ? filePathWithoutExtension : filePathWithExtension;
 
-      const rawPaste = paste.replace("pastebin.com", "pastebin.com/raw");
-      api.sendMessage(`✅ Successfully uploaded to Pastebin:\n${rawPaste}`, event.threadID);
+ fs.readFile(filePath, 'utf8', async (err, data) => {
+ if (err) throw err;
 
-    } catch (error) {
-      console.error("Error uploading to Pastebin:", error.message || error);
-      api.sendMessage("❌ Failed to upload to Pastebin. Please check logs for details.", event.threadID);
-    }
-  }
+ try {
+ const paste = await pastebin.createPaste({
+ text: data,
+ title: fileName,
+ format: null,
+ privacy: 1,
+ });
+
+ const rawPaste = paste.replace("pastebin.com", "pastebin.com/raw");
+ api.sendMessage(rawPaste, event.threadID);
+ } catch (error) {
+ console.error(error);
+ api.sendMessage('An error occurred while uploading the file to Pastebin.', event.threadID);
+ }
+ });
+ }
 };
